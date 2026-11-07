@@ -140,6 +140,7 @@ let S = 2;
 function sizeCanvas(){
   const dpr = Math.min(2, window.devicePixelRatio || 1);
   S = Math.max(2, dpr * 1.5);
+  S = Math.min(S, 4096 / CW, 4096 / CH);
   cv.width = Math.round(CW * S);
   cv.height = Math.round(CH * S);
 }
@@ -220,7 +221,16 @@ const BADGE_C = {x:135, y:507};
 const FADE = (()=>{ const a=[]; for(let i=0;i<=10;i++){ const t=i/10; a.push([t,(215/255)*Math.pow(t,2.1)]); } return a; })();
 
 function drawPhoto(c){
-  if(!state.img) return;
+  if(!state.img){
+    c.save();
+    c.fillStyle = 'rgba(120,110,100,.55)';
+    c.font = '600 15px ' + F_CJK;
+    c.textAlign = 'center'; c.textBaseline = 'middle';
+    c.fillText('点击右侧上传头像', BOX.x + BOX.w/2, BOX.y + BOX.h*0.48);
+    c.restore();
+    return;
+  }
+  try{
   const im = state.img;
   const base = Math.max(BOX.w/im.width, BOX.h/im.height);
   const s = base * state.zoom;
@@ -237,6 +247,7 @@ function drawPhoto(c){
   c.fillStyle = g;
   c.fillRect(BOX.x, top, BOX.w, BOX.y+BOX.h-top);
   c.restore();
+  }catch(err){ c.restore(); console.error('photo failed', err); }
 }
 
 function drawFront(c){
@@ -292,17 +303,13 @@ function drawBack(c){
 
 function draw(c){ state.side === 'front' ? drawFront(c) : drawBack(c); }
 
-let rafPending = false;
 function render(){
-  if(rafPending) return;
-  rafPending = true;
-  requestAnimationFrame(()=>{
-    rafPending = false;
-    ctx.setTransform(1,0,0,1,0,0);
-    ctx.clearRect(0,0,cv.width,cv.height);
-    ctx.scale(S,S);
-    draw(ctx);
-  });
+  if(!baseFront) return;
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.clearRect(0,0,cv.width,cv.height);
+  ctx.scale(S,S);
+  try{ draw(ctx); }
+  catch(err){ console.error('draw failed', err); }
 }
 
 /* ---- 交互 ---- */
@@ -477,19 +484,34 @@ async function boot(){
   sizeCanvas();
   baseFront = await loadImg(BASE_FRONT);
   badgeImg = await loadImg(BADGE_SRC);
+  render();
+  // 头像优先，字体不阻塞
   try{
-    await document.fonts.load('900 48px "CardCJK"');
-    await document.fonts.load('400 28px "CardArchivo"');
-    await document.fonts.load('700 22px "CardMono"');
+    await applyPhoto(AVATAR_SRC);
+  }catch(e){
+    console.warn('default avatar failed, retrying once', e);
+    try{ await applyPhoto(AVATAR_SRC); }
+    catch(e2){ console.error('default avatar unavailable', e2); cv.classList.add('nophoto'); }
+  }
+  render();
+  try{
+    await Promise.race([
+      Promise.all([
+        document.fonts.load('900 48px "CardCJK"'),
+        document.fonts.load('400 28px "CardArchivo"'),
+        document.fonts.load('700 22px "CardMono"')
+      ]),
+      new Promise(r=>setTimeout(r, 4000))
+    ]);
     await document.fonts.ready;
   }catch(e){}
-  await applyPhoto(AVATAR_SRC).catch(()=>{ cv.classList.add('nophoto'); });
   render();
 }
 if(document.fonts && document.fonts.addEventListener){
   document.fonts.addEventListener('loadingdone', ()=>render());
 }
 window.addEventListener('resize', ()=>{ sizeCanvas(); render(); });
+document.documentElement.dataset.build = 'card-2026-11-07-b';
 boot();
 /* 自检：?selftest=1 时把导出的 PNG 塞进 textarea，方便外部校验 */
 if(location.search.indexOf('selftest') >= 0){
