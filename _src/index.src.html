@@ -1,0 +1,518 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>専科生ヲタ芸同好会 · 会员证编辑器</title>
+<style>
+  @font-face{font-family:"CardArchivo";src:url(data:font/ttf;base64,__ARCHIVO__) format("truetype");font-weight:400;font-display:block;}
+  @font-face{font-family:"CardMono";src:url(data:font/ttf;base64,__MONO__) format("truetype");font-weight:700;font-display:block;}
+  @font-face{font-family:"CardCJK";src:url("fonts/NotoSansSC-card.woff2") format("woff2");font-weight:100 900;font-display:block;}
+
+  :root{--wine:#761c32;--beige:#c6bcb3;--ink:#1b1b1b;--line:#e6e2dd;--bg:#f6f4f1;}
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{
+    background:var(--bg);color:var(--ink);
+    font-family:"Noto Sans SC","PingFang SC","Microsoft YaHei",system-ui,sans-serif;
+    font-size:14px;-webkit-font-smoothing:antialiased;
+  }
+  header{display:flex;align-items:baseline;gap:14px;padding:16px 26px;border-bottom:1px solid var(--line);background:#fff}
+  header h1{font-size:15px;margin:0;font-weight:700;letter-spacing:.02em}
+  header .sub{font-size:11px;color:#8b8178;letter-spacing:.16em}
+  header .spacer{flex:1}
+  header .hint{font-size:12px;color:#a0968c}
+
+  main{display:grid;grid-template-columns:minmax(0,1fr) 350px;height:calc(100% - 55px)}
+  .stage{padding:26px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;min-width:0;overflow:auto}
+  .card-wrap{
+    width:min(100%,860px);position:relative;border-radius:14px;overflow:hidden;background:#fff;
+    box-shadow:0 20px 44px -20px rgba(60,40,30,.5),0 2px 8px rgba(60,40,30,.08);
+  }
+  canvas#cv{display:block;width:100%;height:auto;cursor:grab;touch-action:none}
+  canvas#cv.dragging{cursor:grabbing}
+  canvas#cv.nophoto{cursor:default}
+  .tabs{display:flex;gap:4px;background:#efece8;padding:4px;border-radius:10px}
+  .tabs button{border:0;background:transparent;padding:7px 24px;border-radius:7px;font:inherit;font-size:13px;color:#6d645b;cursor:pointer}
+  .tabs button.on{background:#fff;color:var(--ink);box-shadow:0 1px 3px rgba(0,0,0,.08)}
+
+  aside{border-left:1px solid var(--line);background:#fff;overflow:auto;padding:18px 22px 48px}
+  .group{margin-bottom:20px}
+  .group>.lab{font-size:10.5px;letter-spacing:.16em;color:#a2988e;margin:0 0 8px;text-transform:uppercase}
+  .field{margin-bottom:11px}
+  .field label{display:block;font-size:12px;color:#7d746a;margin-bottom:5px}
+  .field input[type=text]{
+    width:100%;padding:9px 11px;border:1px solid var(--line);border-radius:8px;
+    font:inherit;font-size:14px;background:#fcfbfa;color:var(--ink);
+  }
+  .field input[type=text]:focus{outline:none;border-color:#c3b6a8;background:#fff;box-shadow:0 0 0 3px rgba(198,188,179,.25)}
+  .drop{border:1.5px dashed #d9d1c8;border-radius:10px;padding:15px;text-align:center;color:#918779;font-size:12.5px;cursor:pointer;background:#fcfbfa;transition:.15s;line-height:1.7}
+  .drop:hover{border-color:#c0b3a4;background:#faf7f3}
+  .drop b{color:#6c6155}
+  .slider{display:flex;align-items:center;gap:10px}
+  .slider input[type=range]{flex:1;accent-color:var(--wine);min-width:0}
+  .slider .v{font-size:11.5px;color:#8b8178;width:38px;text-align:right;font-variant-numeric:tabular-nums}
+  .actions{display:flex;flex-direction:column;gap:8px}
+  button.btn{
+    border:1px solid var(--line);background:#fff;color:var(--ink);padding:11px 14px;
+    border-radius:9px;font:inherit;font-size:13.5px;cursor:pointer;transition:.15s;
+  }
+  button.btn:hover{background:#faf8f5;border-color:#d7cdc2}
+  button.btn.primary{background:var(--wine);border-color:var(--wine);color:#fff}
+  button.btn.primary:hover{background:#65182b}
+  .tip{font-size:11.5px;color:#a89e93;line-height:1.65;margin:10px 0 0}
+  @media (max-width:900px){main{grid-template-columns:1fr;height:auto}aside{border-left:0;border-top:1px solid var(--line)}}
+</style>
+</head>
+<body>
+<header>
+  <h1>専科生ヲタ芸同好会</h1>
+  <span class="sub">MEMBER'S CARD EDITOR</span>
+  <span class="spacer"></span>
+  <span class="hint">照片可直接在卡面上拖动</span>
+</header>
+
+<main>
+  <section class="stage">
+    <div class="card-wrap"><canvas id="cv"></canvas></div>
+    <div class="tabs">
+      <button data-side="front" class="on">正面</button>
+      <button data-side="back">反面</button>
+    </div>
+  </section>
+
+  <aside>
+    <div class="group">
+      <p class="lab">Portrait</p>
+      <div class="drop" id="drop"><b>点击上传头像</b><br>或把图片拖到页面里</div>
+      <input type="file" id="file" accept="image/*" hidden>
+      <div class="field" style="margin-top:12px">
+        <label>缩放</label>
+        <div class="slider"><input type="range" id="zoom" min="1" max="3" step="0.01" value="1"><span class="v" id="zoomv">1.00</span></div>
+      </div>
+      <div class="field">
+        <label>垂直位置</label>
+        <div class="slider"><input type="range" id="posy" min="-1" max="1" step="0.01" value="0"><span class="v" id="posyv">0.00</span></div>
+      </div>
+    </div>
+
+    <div class="group">
+      <p class="lab">Text</p>
+      <div class="field"><label>Name（大字）</label><input type="text" id="name" maxlength="14" value="アスター"></div>
+      <div class="field"><label>Roman（小字）</label><input type="text" id="roman" maxlength="22" value="ASTER"></div>
+      <div class="field"><label>Band Name</label><input type="text" id="band" maxlength="14" value="炒日"></div>
+      <div class="field"><label>Points / 编号</label><input type="text" id="points" maxlength="10" value="114514"></div>
+      <div class="field"><label>会名（字标与免责声明同步）</label><input type="text" id="club" maxlength="14" value="専科生ヲタ芸同好会"></div>
+    </div>
+
+    <div class="group">
+      <p class="lab">Export</p>
+      <div class="actions">
+        <button class="btn primary" id="dl-front">导出正面 PNG</button>
+        <button class="btn" id="dl-back">导出反面 PNG</button>
+        <button class="btn" id="dl-both">导出双面拼版</button>
+        <button class="btn" id="reset">恢复默认</button>
+      </div>
+      <p class="tip">导出 3033 × 1914 px，写入 300 dpi；成品尺寸 85.6 × 54.0 mm（CR80）。</p>
+    </div>
+  </aside>
+</main>
+
+<script>
+const CW = 1011, CH = 638;
+const BASE_FRONT = "__BASE_FRONT__";
+const BADGE_SRC  = "__BADGE__";
+const AVATAR_SRC = "__AVATAR__";
+const DEFAULT = { club:'専科生ヲタ芸同好会', name:'アスター', roman:'ASTER', band:'炒日', points:'114514' };
+
+const F_CJK = '"CardCJK","Noto Sans SC","Microsoft YaHei",sans-serif';
+const F_ARCHIVO = '"CardArchivo","Archivo Black",Impact,sans-serif';
+const F_MONO = '"CardMono","Roboto Mono",monospace';
+
+const state = { side:'front', img:null, zoom:1, ox:0, oy:0,
+  club:DEFAULT.club, name:DEFAULT.name, roman:DEFAULT.roman,
+  band:DEFAULT.band, points:DEFAULT.points };
+
+const cv = document.getElementById('cv');
+const ctx = cv.getContext('2d');
+let S = 2;
+
+function sizeCanvas(){
+  const dpr = Math.min(2, window.devicePixelRatio || 1);
+  S = Math.max(2, dpr * 1.5);
+  cv.width = Math.round(CW * S);
+  cv.height = Math.round(CH * S);
+}
+function loadImg(src){
+  return new Promise((res, rej)=>{
+    const im = new Image();
+    im.onload = ()=>res(im);
+    im.onerror = rej;
+    im.src = src;
+  });
+}
+let baseFront, badgeImg;
+
+/* ---- 绘图工具 ---- */
+function roundRectPath(c,x,y,w,h,r){
+  c.beginPath();
+  c.moveTo(x+r,y);
+  c.arcTo(x+w,y,x+w,y+h,r);
+  c.arcTo(x+w,y+h,x,y+h,r);
+  c.arcTo(x,y+h,x,y,r);
+  c.arcTo(x,y,x+w,y,r);
+  c.closePath();
+}
+function setFont(c,size,weight,fam){ c.font = weight + ' ' + size + 'px ' + fam; }
+function inkWidth(c,text,tracking){
+  tracking = tracking || 0;
+  if(!text) return 0;
+  let w = 0;
+  for(const ch of text) w += c.measureText(ch).width + tracking;
+  return w - tracking;
+}
+function drawTracked(c,text,x,inkTop,tracking,color){
+  tracking = tracking || 0;
+  if(!text) return 0;
+  const m = c.measureText(text);
+  const asc = m.actualBoundingBoxAscent || m.fontBoundingBoxAscent || 0;
+  c.fillStyle = color || '#111';
+  c.textBaseline = 'alphabetic';
+  let cx = x;
+  const y = inkTop + asc;
+  for(const ch of text){
+    c.fillText(ch, cx, y);
+    cx += c.measureText(ch).width + tracking;
+  }
+  return inkWidth(c, text, tracking);
+}
+function drawCenter(c,text,centerX,inkTop,tracking,color){
+  const w = inkWidth(c, text, tracking || 0);
+  drawTracked(c, text, centerX - w/2, inkTop, tracking, color);
+}
+function fitSize(c,text,size,maxW,fam,weight,tracking){
+  let s = size;
+  while(s > 8){
+    setFont(c, s, weight, fam);
+    if(inkWidth(c, text, tracking) <= maxW) break;
+    s -= 0.4;
+  }
+  return s;
+}
+function labelBar(c,text,left,top){
+  const h = 17, pad = 5, size = 17.6;
+  setFont(c, size, 400, F_ARCHIVO);
+  const w = inkWidth(c, text, 0) + pad*2;
+  c.fillStyle = '#111';
+  c.fillRect(left, top, w, h);
+  const m = c.measureText(text);
+  const asc = m.actualBoundingBoxAscent || 0;
+  const desc = m.actualBoundingBoxDescent || 0;
+  c.fillStyle = '#fff';
+  c.textBaseline = 'alphabetic';
+  c.fillText(text, left + pad, top + (h - (asc + desc))/2 + asc);
+  return w;
+}
+
+/* ---- 卡面 ---- */
+const BOX = {x:63, y:69, w:400, h:514, r:15};
+const BADGE_C = {x:135, y:507};
+const FADE = (()=>{ const a=[]; for(let i=0;i<=10;i++){ const t=i/10; a.push([t,(215/255)*Math.pow(t,2.1)]); } return a; })();
+
+function drawPhoto(c){
+  if(!state.img) return;
+  const im = state.img;
+  const base = Math.max(BOX.w/im.width, BOX.h/im.height);
+  const s = base * state.zoom;
+  const dw = im.width*s, dh = im.height*s;
+  const dx = BOX.x + (BOX.w-dw)/2 + state.ox;
+  const dy = BOX.y + (BOX.h-dh)/2 + state.oy*BOX.h*0.5;
+  c.save();
+  roundRectPath(c, BOX.x, BOX.y, BOX.w, BOX.h, BOX.r);
+  c.clip();
+  c.drawImage(im, dx, dy, dw, dh);
+  const top = BOX.y + BOX.h*0.64;
+  const g = c.createLinearGradient(0, top, 0, BOX.y+BOX.h);
+  for(const st of FADE) g.addColorStop(st[0], 'rgba(255,255,255,'+st[1].toFixed(3)+')');
+  c.fillStyle = g;
+  c.fillRect(BOX.x, top, BOX.w, BOX.y+BOX.h-top);
+  c.restore();
+}
+
+function drawFront(c){
+  c.drawImage(baseFront, 0, 0, CW, CH);
+  drawPhoto(c);
+  c.drawImage(badgeImg, BADGE_C.x-100, BADGE_C.y-100, 200, 200);
+
+  let ws = fitSize(c, state.club, 34, 400, F_CJK, 900, 2.4);
+  setFont(c, ws, 900, F_CJK);
+  drawTracked(c, state.club, 508, 226, 2.4, '#111');
+
+  labelBar(c, 'NAME', 507, 296);
+  const ns = fitSize(c, state.name, 48, 320, F_CJK, 900, 1.4);
+  setFont(c, ns, 900, F_CJK);
+  drawTracked(c, state.name, 509, 328, 1.4, '#111');
+
+  setFont(c, 22.5, 700, F_MONO);
+  drawTracked(c, state.roman, 509, 379, 3.6, '#111');
+
+  labelBar(c, 'BAND NAME', 507, 423);
+  const bs = fitSize(c, state.band, 31, 205, F_CJK, 900, 3);
+  setFont(c, bs, 900, F_CJK);
+  drawTracked(c, state.band, 508, 452, 3, '#111');
+
+  labelBar(c, 'POINTS', 731, 423);
+  const ps = fitSize(c, state.points, 27, 190, F_ARCHIVO, 400, 0);
+  setFont(c, ps, 400, F_ARCHIVO);
+  drawTracked(c, state.points, 737, 450, 0, '#111');
+
+  const lines = [
+    '■この会員証は' + state.club + 'の',
+    '　会員であることを証明するものです。',
+    '■この会員証は会員本人以外は使用できません。'
+  ];
+  let fs = 19;
+  for(const t of lines) fs = Math.min(fs, fitSize(c, t, 19, 408, F_CJK, 700, 0));
+  setFont(c, fs, 700, F_CJK);
+  let y = 510;
+  for(const t of lines){ drawTracked(c, t, 527, y, 0, '#191919'); y += 25; }
+}
+
+function drawBack(c){
+  c.fillStyle = '#761c32';
+  c.fillRect(0, 0, CW, CH);
+  const ws = fitSize(c, state.club, 56, 760, F_CJK, 900, 6);
+  setFont(c, ws, 900, F_CJK);
+  drawCenter(c, state.club, CW/2, 272, 6, '#fff');
+  setFont(c, 26, 900, F_CJK);
+  drawCenter(c, '専是本!', CW/2, 368, 10, 'rgba(255,255,255,.79)');
+  setFont(c, 13, 700, F_MONO);
+  drawCenter(c, '©BanG Dream! Project', CW/2, 572, 1, 'rgba(255,255,255,.75)');
+}
+
+function draw(c){ state.side === 'front' ? drawFront(c) : drawBack(c); }
+
+let rafPending = false;
+function render(){
+  if(rafPending) return;
+  rafPending = true;
+  requestAnimationFrame(()=>{
+    rafPending = false;
+    ctx.setTransform(1,0,0,1,0,0);
+    ctx.clearRect(0,0,cv.width,cv.height);
+    ctx.scale(S,S);
+    draw(ctx);
+  });
+}
+
+/* ---- 交互 ---- */
+['name','roman','band','points','club'].forEach(k=>{
+  const el = document.getElementById(k);
+  el.value = DEFAULT[k];
+  el.addEventListener('input', ()=>{ state[k] = el.value; render(); });
+});
+
+let drag = null;
+function pt(e){
+  const r = cv.getBoundingClientRect();
+  return { x:(e.clientX-r.left)*(CW/r.width), y:(e.clientY-r.top)*(CH/r.height) };
+}
+cv.addEventListener('pointerdown', e=>{
+  if(!state.img) return;
+  cv.setPointerCapture(e.pointerId);
+  drag = { p:pt(e), ox:state.ox, oy:state.oy };
+  cv.classList.add('dragging');
+});
+cv.addEventListener('pointermove', e=>{
+  if(!drag) return;
+  const p = pt(e);
+  state.ox = drag.ox + (p.x - drag.p.x);
+  state.oy = drag.oy + (p.y - drag.p.y)/(BOX.h*0.5);
+  state.oy = Math.max(-1, Math.min(1, state.oy));
+  document.getElementById('posy').value = state.oy;
+  document.getElementById('posyv').textContent = state.oy.toFixed(2);
+  render();
+});
+['pointerup','pointercancel'].forEach(t=>cv.addEventListener(t, ()=>{
+  drag = null; cv.classList.remove('dragging');
+}));
+
+document.getElementById('zoom').addEventListener('input', e=>{
+  state.zoom = parseFloat(e.target.value);
+  document.getElementById('zoomv').textContent = state.zoom.toFixed(2);
+  render();
+});
+document.getElementById('posy').addEventListener('input', e=>{
+  state.oy = parseFloat(e.target.value);
+  document.getElementById('posyv').textContent = state.oy.toFixed(2);
+  render();
+});
+document.querySelectorAll('.tabs button').forEach(b=>{
+  b.addEventListener('click', ()=>{
+    document.querySelectorAll('.tabs button').forEach(x=>x.classList.remove('on'));
+    b.classList.add('on');
+    state.side = b.dataset.side;
+    render();
+  });
+});
+
+document.getElementById('drop').addEventListener('click', ()=>document.getElementById('file').click());
+document.getElementById('file').addEventListener('change', e=>readFile(e.target.files[0]));
+['dragover','dragenter'].forEach(t=>document.addEventListener(t, e=>e.preventDefault()));
+document.addEventListener('drop', e=>{
+  e.preventDefault();
+  if(e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0]) readFile(e.dataTransfer.files[0]);
+});
+function readFile(f){
+  if(!f || !f.type.startsWith('image/')) return;
+  const fr = new FileReader();
+  fr.onload = ()=>applyPhoto(fr.result);
+  fr.readAsDataURL(f);
+}
+function applyPhoto(src){
+  return loadImg(src).then(im=>{
+    state.img = im;
+    state.zoom = 1; state.ox = 0; state.oy = 0;
+    document.getElementById('zoom').value = 1;
+    document.getElementById('zoomv').textContent = '1.00';
+    document.getElementById('posy').value = 0;
+    document.getElementById('posyv').textContent = '0.00';
+    cv.classList.remove('nophoto');
+    render();
+  });
+}
+document.getElementById('reset').addEventListener('click', ()=>{
+  ['name','roman','band','points','club'].forEach(k=>{
+    state[k] = DEFAULT[k];
+    document.getElementById(k).value = DEFAULT[k];
+  });
+  applyPhoto(AVATAR_SRC);
+});
+
+/* ---- 导出 ---- */
+function offscreen(scale){
+  const c = document.createElement('canvas');
+  c.width = Math.round(CW*scale);
+  c.height = Math.round(CH*scale);
+  const x = c.getContext('2d');
+  x.save(); x.scale(scale,scale); draw(x); x.restore();
+  return c;
+}
+const CRC_TABLE = (()=>{
+  const t = new Uint32Array(256);
+  for(let n=0;n<256;n++){
+    let c = n;
+    for(let k=0;k<8;k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+    t[n] = c >>> 0;
+  }
+  return t;
+})();
+function crc32(b){
+  let c = 0xFFFFFFFF;
+  for(let i=0;i<b.length;i++) c = CRC_TABLE[(c ^ b[i]) & 0xFF] ^ (c >>> 8);
+  return (c ^ 0xFFFFFFFF) >>> 0;
+}
+async function pngDpi(blob, dpi){
+  const buf = new Uint8Array(await blob.arrayBuffer());
+  const ppm = Math.round(dpi / 0.0254);
+  const data = new Uint8Array(9);
+  const dv = new DataView(data.buffer);
+  dv.setUint32(0, ppm); dv.setUint32(4, ppm); data[8] = 1;
+  const type = new TextEncoder().encode('pHYs');
+  const body = new Uint8Array(4 + 4 + 9 + 4);
+  new DataView(body.buffer).setUint32(0, 9);
+  body.set(type, 4); body.set(data, 8);
+  const crcBuf = new Uint8Array(4 + 9);
+  crcBuf.set(type, 0); crcBuf.set(data, 4);
+  new DataView(body.buffer).setUint32(17, crc32(crcBuf));
+  const cut = 8 + 25;
+  const out = new Uint8Array(buf.length + body.length);
+  out.set(buf.subarray(0, cut), 0);
+  out.set(body, cut);
+  out.set(buf.subarray(cut), cut + body.length);
+  return new Blob([out], {type:'image/png'});
+}
+function saveBlob(blob, name){
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(a.href), 5000);
+}
+function stamp(){
+  const d = new Date(), p = n=>String(n).padStart(2,'0');
+  return '' + d.getFullYear() + p(d.getMonth()+1) + p(d.getDate()) + '-' + p(d.getHours()) + p(d.getMinutes());
+}
+async function exportSide(side){
+  const prev = state.side;
+  state.side = side;
+  const c = offscreen(3);
+  state.side = prev;
+  const blob = await new Promise(r=>c.toBlob(r,'image/png'));
+  const f = await pngDpi(blob, 300);
+  saveBlob(f, '会员证_' + state.name + '_' + (side==='front'?'正面':'反面') + '_' + stamp() + '.png');
+}
+async function exportBoth(){
+  const scale = 3, W = CW*scale, H = CH*scale, gap = 90, pad = 90;
+  const c = document.createElement('canvas');
+  c.width = W*2 + gap + pad*2;
+  c.height = H + pad*2;
+  const x = c.getContext('2d');
+  x.fillStyle = '#f2efec'; x.fillRect(0,0,c.width,c.height);
+  const prev = state.side;
+  state.side = 'front';
+  x.save(); x.translate(pad,pad); x.scale(scale,scale); draw(x); x.restore();
+  state.side = 'back';
+  x.save(); x.translate(pad+W+gap,pad); x.scale(scale,scale); draw(x); x.restore();
+  state.side = prev;
+  const blob = await new Promise(r=>c.toBlob(r,'image/png'));
+  saveBlob(await pngDpi(blob,300), '会员证_' + state.name + '_双面_' + stamp() + '.png');
+}
+document.getElementById('dl-front').addEventListener('click', ()=>exportSide('front'));
+document.getElementById('dl-back').addEventListener('click', ()=>exportSide('back'));
+document.getElementById('dl-both').addEventListener('click', exportBoth);
+
+/* ---- 启动 ---- */
+async function boot(){
+  sizeCanvas();
+  baseFront = await loadImg(BASE_FRONT);
+  badgeImg = await loadImg(BADGE_SRC);
+  try{
+    await document.fonts.load('900 48px "CardCJK"');
+    await document.fonts.load('400 28px "CardArchivo"');
+    await document.fonts.load('700 22px "CardMono"');
+    await document.fonts.ready;
+  }catch(e){}
+  await applyPhoto(AVATAR_SRC).catch(()=>{ cv.classList.add('nophoto'); });
+  render();
+}
+if(document.fonts && document.fonts.addEventListener){
+  document.fonts.addEventListener('loadingdone', ()=>render());
+}
+window.addEventListener('resize', ()=>{ sizeCanvas(); render(); });
+boot();
+/* 自检：?selftest=1 时把导出的 PNG 塞进 textarea，方便外部校验 */
+if(location.search.indexOf('selftest') >= 0){
+  setTimeout(async ()=>{
+    const q = new URLSearchParams(location.search);
+    if(q.get('name')){
+      const el = document.getElementById('name');
+      el.value = q.get('name');
+      el.dispatchEvent(new Event('input'));
+    }
+    const c = offscreen(1);
+    const blob = await new Promise(r=>c.toBlob(r,'image/png'));
+    const f = await pngDpi(blob, 300);
+    const fr = new FileReader();
+    fr.onload = ()=>{
+      const t = document.createElement('textarea');
+      t.id = '__out'; t.textContent = fr.result;
+      document.body.appendChild(t);
+      document.title = 'READY';
+    };
+    fr.readAsDataURL(f);
+  }, 1200);
+}
+</script>
+</body>
+</html>
